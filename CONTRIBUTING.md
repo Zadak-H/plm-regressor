@@ -1,6 +1,6 @@
-# Contributing to HelixForge
+# Contributing to PETalyst AI
 
-Thanks for helping improve HelixForge.
+Thanks for helping improve PETalyst AI.
 
 ## What Helps Most
 

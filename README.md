@@ -1,4 +1,4 @@
-# Catalytica MLDE
+# PETalyst AI
 
 > Rank-first MLDE for small-data protein engineering.
 
@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Workflow Guide](https://img.shields.io/badge/guide-field--guide-orange.svg)](field-guide/MLDE_WORKFLOW.md)
 
-Catalytica MLDE is a practical machine-learning-directed evolution workflow for protein engineering when labels are scarce and ranking quality matters more than everything else.
+PETalyst AI is a practical machine-learning-directed evolution workflow for protein engineering when labels are scarce and ranking quality matters more than everything else.
 
 It is designed for:
 
@@ -15,7 +15,7 @@ It is designed for:
 - scoring zero-shot candidate sequences with the chosen saved model
 - optionally adding uncertainty without making uncertainty mandatory
 
-## Why Catalytica MLDE
+## Why PETalyst AI
 
 Most small-data protein MLDE setups need a few things to work well in practice:
 

@@ -1,4 +1,4 @@
-# HelixForge Field Guide
+# PETalyst AI Field Guide
 
 This repo supports two practical MLDE workflows from the command line:
 
