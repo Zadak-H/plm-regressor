@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+
+# Environments
+.venv/
+venv/
+env/
+.env
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Generated MLDE outputs
+runs/
+zeroshot_embeds/
+*.joblib
+*.png
+*.pdf
+
+# Local temp files
+tmp/
+*.log

@@ -1,0 +1,22 @@
+name: pet
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - joblib
+  - lightgbm
+  - matplotlib
+  - numpy
+  - optuna
+  - pandas
+  - pip
+  - pytorch
+  - scikit-learn
+  - scipy
+  - tqdm
+  - xgboost
+  - pip:
+      - fair-esm>=2.0
+      - transformers>=4.36
