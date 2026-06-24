@@ -29,6 +29,17 @@ zeroshot_embeds/
 *.png
 *.pdf
 
+# Packaging / build
+*.egg-info/
+build/
+dist/
+
+# MkDocs build output
+/site/
+
+# GUI workspace
+plm_regressor_workspace/
+
 # Local temp files
 tmp/
 *.log

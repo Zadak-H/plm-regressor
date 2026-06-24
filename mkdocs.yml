@@ -1,0 +1,56 @@
+site_name: PLM-Regressor
+site_description: General sequence → property regression (MLDE) with protein language models, deep + classical regressors, size-aware Optuna search, and a no-code GUI.
+site_url: https://zadak-h.github.io/plm-regressor/
+repo_url: https://github.com/Zadak-H/plm-regressor
+repo_name: Zadak-H/plm-regressor
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - scheme: slate
+      primary: teal
+      accent: green
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+    - toc.follow
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - GUI usage: gui.md
+  - CLI usage: cli.md
+  - Models & pLMs: models.md
+  - How it works: concepts.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Zadak-H/plm-regressor

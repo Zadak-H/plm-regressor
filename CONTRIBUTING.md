@@ -1,6 +1,6 @@
-# Contributing to PETalyst AI
+# Contributing to PLM-Regressor
 
-Thanks for helping improve PETalyst AI.
+Thanks for helping improve PLM-Regressor.
 
 ## What Helps Most
 

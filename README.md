@@ -1,124 +1,95 @@
-# PETalyst AI
+<h1 align="center">PLM-Regressor</h1>
 
-> Rank-first MLDE for small-data protein engineering.
+<p align="center">
+  <b>General sequence → property regression for protein engineering.</b><br>
+  Turn a CSV of sequences + a numeric property (activity, Kd, Tm, pH, …) into a trained model
+  and a ranked candidate list — with a no-code web GUI.
+</p>
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](requirements.txt)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Workflow Guide](https://img.shields.io/badge/guide-field--guide-orange.svg)](field-guide/MLDE_WORKFLOW.md)
+<p align="center">
+  <a href="https://zadak-h.github.io/plm-regressor/"><img src="https://img.shields.io/badge/docs-website-teal.svg" alt="Docs"></a>
+  <a href="requirements.txt"><img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT"></a>
+</p>
 
-PETalyst AI is a practical machine-learning-directed evolution workflow for protein engineering when labels are scarce and ranking quality matters more than everything else.
+<p align="center">
+  📖 <b><a href="https://zadak-h.github.io/plm-regressor/">Documentation &amp; GUI guide</a></b>
+</p>
 
-It is designed for:
+---
 
-- selecting the best supervised model from out-of-fold predictions
-- searching across learned embeddings and simple sequence encodings
-- scoring zero-shot candidate sequences with the chosen saved model
-- optionally adding uncertainty without making uncertainty mandatory
+## What it does
 
-## Why PETalyst AI
+- **Many feature sources** — protein language model embeddings (ESM2 8M–15B, ESM1/1b/1v,
+  **ESM C / Cambrian** + the HF mirror **ESM++**, ProtT5, ProstT5, ProtBert, ProSST, Ankh, CARP),
+  simple encodings (one-hot, BLOSUM62), and **extra tabular columns** (pH, temperature, assay
+  conditions) fed alongside sequence features.
+- **Many regressors** — a large classical zoo (ridge, elasticnet, SVR, KNN, RF, ExtraTrees,
+  HistGB, XGBoost, LightGBM, PLS, KernelRidge, GPR, BayesianRidge, SGD) **plus deep models**:
+  `mlp_torch` (FNN over embeddings) and `cnn1d` (1D-CNN over one-hot/BLOSUM).
+- **Size-aware Optuna search** — auto-picks CV strategy, trial budget, and eligible models from
+  the dataset size (100 → 1M+); big data uses subsample-tuning + full-data refit.
+- **Leakage-safe CV + OOF model selection**, conformal + ensemble **uncertainty**, and a rich
+  report (Spearman, Pearson, Kendall, R², RMSE, MSE, MAE, NDCG, top-k recall + plots).
+- **Streamlit GUI** and a thin CLI over one config object.
 
-Most small-data protein MLDE setups need a few things to work well in practice:
-
-- leakage-safe cross-validation
-- rank-aware model selection
-- flexible but debuggable feature search
-- clean zero-shot deployment
-- a lightweight path when you do not want uncertainty or feature-combination search
-
-This repo now supports all of those in a single workflow.
-
-## Quick Start
-
-### 1. Install the environment
-
-Conda:
-
-```bash
-conda env create -f PET.yml
-conda activate pet
-```
-
-or venv:
+## Install
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+git clone https://github.com/Zadak-H/plm-regressor.git
+cd plm-regressor
+python -m pip install -e ".[all]"      # or pick extras: .[deep] .[esm] .[t5] .[gui]
 ```
 
-### 2. Run a standard supervised search
+## Quick start
 
-This compares the provided feature sources as single models only, with no feature-combination search and no uncertainty layer:
+**GUI (no code):**
 
 ```bash
-python scripts/training3_optuna_mlde_uncertainty.py \
-  --csv data/21h_activity_TPA_release_0_1MKPB.csv \
-  --train-seq-col Protein_Seq \
-  --target-col Activity \
-  --id-col Code \
-  --embedding-dir embeddings \
-  --feature-sources esm2 prostT5 \
-  --standard \
-  --no-uncertainty \
-  --out-dir runs/activity_standard_no_unc
+plm-regressor gui
 ```
 
-### 3. Compare supervised runs
+Upload a CSV → pick the target + any extra columns → tick pLMs + regressors → **Run** → read the
+report → rank candidates. See the [GUI guide](https://zadak-h.github.io/plm-regressor/gui/).
+
+**CLI:**
 
 ```bash
-python scripts/select_best_supervised_model.py \
-  --run-dirs runs/activity_standard_no_unc \
-  --metric spearman \
-  --plot-best
+plm-regressor train run.yaml        # train from a config
+plm-regressor predict --run-dir runs/activity --candidate-csv cand.csv --predict-seq-col Sequence
+plm-regressor embed --plm esm2 --input-csv cand.csv --seq-col Sequence --output-npz embeddings/esm2.npz
+plm-regressor list                  # every model + pLM and whether it's available
 ```
 
-### 4. Rank zero-shot candidates
+A minimal `run.yaml`:
 
-```bash
-python scripts/rank_zero_shot_candidates.py \
-  --run-dir runs/activity_standard_no_unc \
-  --candidate-csv data/zero_shot_mutants.csv \
-  --predict-seq-col Sequence \
-  --candidate-embedding-dir zeroshot_embeds \
-  --top-n 100
+```yaml
+csv: data/activity.csv
+seq_col: Protein_Seq
+target_col: Activity
+embedding_dir: embeddings
+feature_sources: [esm2, tabular]
+extra_feature_cols: [pH, temp]
+models: [ridge, svr_rbf, hist_gb, mlp_torch]
+metric: spearman
+auto_size: true
+out_dir: runs/activity
 ```
 
-## Repository Map
+## Documentation
 
-- `data/`: supervised datasets and zero-shot candidate CSVs
-- `embeddings/`: learned embedding banks used for supervised search
-- `scripts/`: training, evaluation, plotting, and ranking entrypoints
-- `scripts/embeds_scripts/`: embedding extractors and cluster runner
-- `field-guide/`: long-form usage docs and workflow reference
+Full docs (install, GUI usage, CLI, model/pLM tables, how it works) live at
+**<https://zadak-h.github.io/plm-regressor/>** (source in [`docs/`](docs/)).
 
-## Main Scripts
+## Repository layout
 
-- `scripts/training3_optuna_mlde_uncertainty.py`
-- `scripts/select_best_supervised_model.py`
-- `scripts/rank_zero_shot_candidates.py`
-- `scripts/scatter_plot.py`
-
-## Docs
-
-Start here for the full run order, commands, and output-file descriptions:
-
-- [field-guide/MLDE_WORKFLOW.md](field-guide/MLDE_WORKFLOW.md)
-
-## Notes
-
-- Use `oof_predictions.csv` for supervised model selection.
-- `--standard` means single provided feature sources only, raw features only, no PCA/SVD, and no quantile target transform.
-- `--no-uncertainty` skips ensemble disagreement and interval generation while keeping the same deployment path.
-- `best_model.joblib` is always the primary deployment artifact.
-
-## Contributing
-
-Bug reports, feature requests, and pull requests are welcome.
-
-- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- License: [MIT](LICENSE)
+- `plm_regressor/` — the framework package (config, registry, sizing, features, models, search, train,
+  predict, metrics, plots, report, cli) + `plm_regressor/embeddings/` extractors
+- `app.py` — Streamlit GUI
+- `docs/` — documentation site (MkDocs Material)
+- `data/`, `embeddings/` — example datasets and precomputed embedding banks
+- `scripts/` — the original standalone CLI (still works)
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+[MIT](LICENSE).

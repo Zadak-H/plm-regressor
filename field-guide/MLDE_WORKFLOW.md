@@ -1,6 +1,24 @@
-# PETalyst AI Field Guide
+# PLM-Regressor Field Guide
 
-This repo supports two practical MLDE workflows from the command line:
+> **v0.2 framework (`plm_regressor/` package + GUI).** The fastest path is now the config-driven
+> package, not the standalone scripts. The scripts below still work unchanged.
+>
+> - GUI: `plm-regressor gui` (upload CSV → pick features/models → Run → report → rank candidates)
+> - Train: write a `run.yaml` (see README) then `plm-regressor train run.yaml`
+> - Extract embeddings (cached): `plm-regressor embed --plm esm2 --input-csv X.csv --seq-col Sequence --output-npz embeddings/esm2.npz`
+> - Rank: `plm-regressor predict --run-dir runs/X --candidate-csv cand.csv --predict-seq-col Sequence --candidate-embedding-dir zeroshot_embeds`
+> - List menus: `plm-regressor list`
+>
+> New vs. the scripts: many more pLMs, deep regressors (`mlp_torch`, `cnn1d`), extra tabular
+> input columns (`feature_sources: [esm2, tabular]` + `extra_feature_cols`/`categorical_cols`),
+> size-aware CV/budget/model-gating (auto for 100→1M+ rows), and a metrics/plots HTML report.
+> Use `metric:` one of `spearman|pearson|kendall|r2|ndcg|rmse|mse|mae`.
+
+---
+
+## Legacy standalone scripts
+
+This repo also supports two practical MLDE workflows from the command line:
 
 - `Standard` mode:
   single provided feature sources only, no feature-combination search, raw features only, no PCA/SVD, no quantile target transform
