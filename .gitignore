@@ -35,7 +35,7 @@ build/
 dist/
 
 # MkDocs build output
-/site/
+
 
 # GUI workspace
 plm_regressor_workspace/

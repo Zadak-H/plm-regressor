@@ -3,7 +3,9 @@ site_description: General sequence → property regression (MLDE) with protein l
 site_url: https://zadak-h.github.io/plm-regressor/
 repo_url: https://github.com/Zadak-H/plm-regressor
 repo_name: Zadak-H/plm-regressor
-edit_uri: edit/main/docs/
+edit_uri: edit/main/docs_src/
+docs_dir: docs_src
+site_dir: docs
 
 theme:
   name: material
