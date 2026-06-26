@@ -132,21 +132,126 @@ def _embed_ankh(spec: PLMSpec, sequences: List[str], batch_size: int, device: st
     return np.asarray(out, dtype=np.float32)
 
 
-def _embed_esmc(spec: PLMSpec, sequences: List[str], batch_size: int, device: str) -> np.ndarray:
-    """ESM C / Cambrian via the EvolutionaryScale `esm` SDK (per-sequence)."""
-    import torch
-    from esm.models.esmc import ESMC
-    from esm.sdk.api import ESMProtein, LogitsConfig
+def _find_esmc_python() -> Optional[str]:
+    """Scan conda/venv prefixes for a Python that has the EvolutionaryScale ESM SDK."""
+    import shutil
+    import subprocess as _sp
+    import os
 
-    client = ESMC.from_pretrained(spec.model_id).to(device).eval()
-    cfg = LogitsConfig(sequence=True, return_embeddings=True)
-    out: List[np.ndarray] = []
-    with torch.no_grad():
-        for seq in sequences:
-            tensor = client.encode(ESMProtein(sequence=seq))
-            emb = client.logits(tensor, cfg).embeddings  # (1, L+special, D)
-            out.append(emb[0, 1:-1].mean(0).float().cpu().numpy())  # drop BOS/EOS, mean-pool
-    return np.asarray(out, dtype=np.float32)
+    probe = (
+        "from esm.models.esmc import ESMC; "
+        "from esm.sdk.api import ESMProtein, LogitsConfig; "
+        "print('ok')"
+    )
+    # common conda roots
+    roots = [
+        os.path.expanduser("~/miniconda3/envs"),
+        os.path.expanduser("~/anaconda3/envs"),
+        "/opt/anaconda3/envs",
+        "/opt/miniconda3/envs",
+    ]
+    candidates: List[str] = []
+    for root in roots:
+        if not Path(root).is_dir():
+            continue
+        for entry in sorted(Path(root).iterdir()):
+            py = entry / "bin" / "python3"
+            if py.exists():
+                candidates.append(str(py))
+    # also check current env's python (may already have it)
+    import sys
+    candidates.insert(0, sys.executable)
+
+    for py in candidates:
+        try:
+            r = _sp.run([py, "-c", probe], capture_output=True, timeout=10)
+            if r.returncode == 0 and b"ok" in r.stdout:
+                return py
+        except Exception:
+            continue
+    return None
+
+
+def _embed_esmc(spec: PLMSpec, sequences: List[str], batch_size: int, device: str) -> np.ndarray:
+    """ESM C / Cambrian via the EvolutionaryScale `esm` SDK (per-sequence).
+
+    If the current Python doesn't have the SDK, auto-detects a conda env that
+    does and runs extraction via subprocess — so ESM-C works transparently
+    even when fair-esm is installed in the active env (they conflict).
+    """
+    # --- try direct import first ---
+    try:
+        import torch
+        from esm.models.esmc import ESMC
+        from esm.sdk.api import ESMProtein, LogitsConfig
+        _esmc_direct = True
+    except (ImportError, ModuleNotFoundError):
+        _esmc_direct = False
+
+    if _esmc_direct:
+        client = ESMC.from_pretrained(spec.model_id).to(device).eval()
+        cfg = LogitsConfig(sequence=True, return_embeddings=True)
+        out: List[np.ndarray] = []
+        with torch.no_grad():
+            for seq in sequences:
+                tensor = client.encode(ESMProtein(sequence=seq))
+                emb = client.logits(tensor, cfg).embeddings
+                out.append(emb[0, 1:-1].mean(0).float().cpu().numpy())
+        return np.asarray(out, dtype=np.float32)
+
+    # --- subprocess fallback: find a Python that has the SDK ---
+    esmc_py = _find_esmc_python()
+    if esmc_py is None:
+        raise RuntimeError(
+            "ESM-C SDK not found in any conda env. "
+            "Install it in a Python ≥3.10 environment:\n"
+            "  conda create -n esmc python=3.10 -y\n"
+            "  conda activate esmc\n"
+            "  pip install esm httpx\n"
+            "Then re-run — this tool will find it automatically."
+        )
+
+    import subprocess as _sp
+    import json
+    import tempfile
+
+    print(f"[ESM-C] SDK not in current env, using: {esmc_py}")
+    script = f"""
+import json, sys, torch
+from esm.models.esmc import ESMC
+from esm.sdk.api import ESMProtein, LogitsConfig
+
+sequences = json.loads(sys.argv[1])
+model_id  = sys.argv[2]
+device    = sys.argv[3]
+
+client = ESMC.from_pretrained(model_id).to(device).eval()
+cfg = LogitsConfig(sequence=True, return_embeddings=True)
+out = []
+with torch.no_grad():
+    for seq in sequences:
+        tensor = client.encode(ESMProtein(sequence=seq))
+        emb = client.logits(tensor, cfg).embeddings
+        out.append(emb[0, 1:-1].mean(0).float().tolist())
+print(json.dumps(out))
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False) as f:
+        f.write(script)
+        script_path = f.name
+
+    try:
+        r = _sp.run(
+            [esmc_py, script_path, json.dumps(sequences), spec.model_id, device],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            raise RuntimeError(f"ESM-C subprocess failed:\n{r.stderr[-2000:]}")
+        # last non-empty line is the JSON array
+        json_line = [l for l in r.stdout.strip().splitlines() if l.strip().startswith("[")][-1]
+        vecs = json.loads(json_line)
+        return np.asarray(vecs, dtype=np.float32)
+    finally:
+        Path(script_path).unlink(missing_ok=True)
 
 
 def _embed_hf_auto(spec: PLMSpec, sequences: List[str], batch_size: int, device: str) -> np.ndarray:
