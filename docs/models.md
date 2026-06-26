@@ -57,10 +57,12 @@ ceiling the size engine uses to auto-skip models that would be too slow.
 | `prosst` | prosst | 768 | AI4Protein/ProSST-2048 | transformers |
 | `carp_640m` | carp | 1280 | carp_640M | sequence-models |
 
-!!! note "ESM C"
-    `esmc_*` use EvolutionaryScale's `esm` SDK, which collides with `fair-esm` (both import as
-    `esm`). To use ESM C today without a separate environment, pick **`esmplusplus_small`** or
-    **`esmplusplus_large`** — the same architecture/weights via `transformers`.
+!!! success "ESM-C auto-discovery"
+    `esmc_300m` and `esmc_600m` use EvolutionaryScale's `esm` SDK (requires Python ≥ 3.10,
+    conflicts with `fair-esm`). **No manual environment switching needed** — the tool scans
+    your conda envs and runs extraction via subprocess when the SDK is found.
+    One-time setup: `conda create -n esmc python=3.10 -y && conda activate esmc && pip install esm httpx`.
+    After that, just pick `esmc_300m` or `esmc_600m` — it works automatically.
 
 ## Simple encodings + tabular
 

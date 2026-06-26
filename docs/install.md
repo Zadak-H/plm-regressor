@@ -35,12 +35,25 @@ plm-regressor list      # prints every regressor + pLM and whether it is availab
 plm-regressor gui       # launches the web app
 ```
 
-## Notes on optional model backends
+## ESM-C setup (one time)
 
-- **ESM C native** (`esmc_300m`, `esmc_600m`) needs EvolutionaryScale's `esm` SDK, which imports
-  as `esm` and **collides with `fair-esm`**. Install it in a *separate* environment, or just use
-  **ESM++** (`esmplusplus_small`, `esmplusplus_large`) which gives the same embeddings through
-  `transformers` with no conflict.
-- **LightGBM** and **CARP** are optional; if not installed, those models simply don't appear in
+ESM-C (`esmc_300m`, `esmc_600m`) uses EvolutionaryScale's `esm` SDK which conflicts with
+`fair-esm` and requires Python ≥ 3.10. **You do not need to switch environments manually** —
+the tool auto-discovers any conda env that has the SDK and uses it via subprocess.
+
+Set it up once:
+
+```bash
+conda create -n esmc python=3.10 -y
+conda activate esmc
+pip install esm httpx
+```
+
+After that, select `esmc_300m` or `esmc_600m` anywhere (GUI or CLI) and it works automatically.
+You will see `[ESM-C] using: /path/to/esmc/bin/python3` in the log.
+
+## Notes on other optional backends
+
+- **LightGBM** and **CARP** are optional; if not installed they simply don't appear in
   `plm-regressor list`.
 - A CUDA GPU is used automatically when available (embedding extraction and deep models).
