@@ -25,9 +25,35 @@ from plm_regressor.registry import DEFAULT_MODELS, available_models, available_p
 
 st.set_page_config(page_title="PLM-Regressor", layout="wide")
 
+_PLM_DESCRIPTIONS = {
+    "esm2_8m":         "ESM-2 8M  — fastest, lowest memory (320-dim). Good for quick tests.",
+    "esm2_35m":        "ESM-2 35M — fast, low memory (480-dim). Recommended starting point.",
+    "esm2_150m":       "ESM-2 150M — good balance of speed and quality (640-dim).",
+    "esm2":            "ESM-2 650M — strong general-purpose model (1280-dim). ⭐ Most popular.",
+    "esm2_3b":         "ESM-2 3B  — high quality, needs ~12 GB VRAM (2560-dim).",
+    "esm2_15b":        "ESM-2 15B — highest ESM2 quality, needs ~60 GB VRAM (5120-dim).",
+    "esm1":            "ESM-1 670M — original ESM (1280-dim).",
+    "esm1b":           "ESM-1b 650M — improved ESM-1 (1280-dim).",
+    "esm1v":           "ESM-1v — trained for variant effect prediction (1280-dim).",
+    "esmc_300m":       "ESM-C 300M — latest EvolutionaryScale model (960-dim). Needs `esm` SDK.",
+    "esmc_600m":       "ESM-C 600M — larger Cambrian model (1152-dim). Needs `esm` SDK.",
+    "esmplusplus_small": "ESM++ small — ESM-C reimplemented in HF Transformers (960-dim). No SDK clash.",
+    "esmplusplus_large": "ESM++ large — larger ESM-C HF variant (1152-dim). No SDK clash.",
+    "protT5":          "ProtT5 XL UniRef50 — T5 encoder, strong across benchmarks (1024-dim).",
+    "protT5_half":     "ProtT5 XL half-precision encoder — faster ProtT5 (1024-dim).",
+    "protT5_bfd":      "ProtT5 XL BFD — ProtT5 trained on BFD database (1024-dim).",
+    "protT5_xxl":      "ProtT5 XXL — largest T5 encoder, highest quality (1024-dim). Slow.",
+    "prostT5":         "ProstT5 — structure-sequence T5 model (1024-dim).",
+    "protbert":        "ProtBert UniRef100 — BERT-based protein model (1024-dim).",
+    "protbert_bfd":    "ProtBert BFD — ProtBert trained on BFD (1024-dim).",
+    "ankh_base":       "Ankh Base — compact efficient protein LM (768-dim).",
+    "ankh_large":      "Ankh Large — larger Ankh model (1536-dim).",
+    "carp_640m":       "CARP 640M — Microsoft sequence-models protein LM (1280-dim).",
+}
+_PLM_NO_AUTO = {"prosst"}
+
 
 def _idx(options, value, default=0):
-    """Safe index lookup for selectbox defaults."""
     try:
         return options.index(value)
     except (ValueError, AttributeError):
@@ -43,12 +69,88 @@ ss.setdefault("columns", [])
 st.title("🧬 PLM-Regressor — sequence → property regression")
 st.caption("Upload data, pick features + models, train, and rank candidates. No coding required.")
 
-tabs = st.tabs(["1. Data", "2. Features", "3. Models", "4. Search", "5. Run", "6. Results", "7. Predict"])
+tabs = st.tabs(["0. Embed", "1. Data", "2. Features", "3. Models", "4. Search", "5. Run", "6. Results", "7. Predict"])
+
+# --------------------------------------------------------------------------- #
+# 0. Embed  — standalone embedding generation (no training required)
+# --------------------------------------------------------------------------- #
+with tabs[0]:
+    st.header("Generate protein embeddings")
+    st.caption(
+        "Upload any CSV with protein sequences, pick a language model, and download the "
+        "embedding file (.npz). No training needed — use this output as a pre-built bank "
+        "for the Features tab, or for any other analysis."
+    )
+
+    from plm_regressor.registry import PLM_REGISTRY as _PLM_REG
+
+    embed_up = st.file_uploader("Upload a CSV with protein sequences", type=["csv"], key="embed_up")
+    embed_csv_path = None
+    embed_cols = []
+    if embed_up is not None:
+        embed_csv_path = WORKSPACE / "embed_input.csv"
+        embed_csv_path.write_bytes(embed_up.getbuffer())
+        _edf = pd.read_csv(embed_csv_path)
+        embed_cols = list(_edf.columns)
+        st.dataframe(_edf.head(10), use_container_width=True)
+        st.caption(f"{len(_edf)} sequences in file.")
+
+    runnable_plms = [n for n in _PLM_REG if n not in _PLM_NO_AUTO]
+    plm_labels = {n: f"{n}  —  {_PLM_DESCRIPTIONS.get(n, '')}" for n in runnable_plms}
+    default_plm = "esm2" if "esm2" in runnable_plms else runnable_plms[0]
+
+    ec1, ec2 = st.columns(2)
+    embed_seq_col = ec1.selectbox(
+        "Sequence column", embed_cols if embed_cols else ["(upload a CSV first)"], key="embed_seq_col"
+    )
+    embed_plm = ec2.selectbox(
+        "Protein language model",
+        runnable_plms,
+        index=runnable_plms.index(default_plm),
+        format_func=lambda n: plm_labels[n],
+        key="embed_plm_select",
+    )
+    with st.expander("Advanced options"):
+        embed_batch = st.number_input("Batch size", 1, 64, 8, key="embed_batch")
+        embed_cpu = st.checkbox("Force CPU (slower but works without a GPU)", value=False, key="embed_cpu")
+
+    embed_out_npz = WORKSPACE / f"{embed_plm}.npz"
+    if st.button("Generate embeddings", type="primary", key="embed_run"):
+        if embed_csv_path is None:
+            st.error("Upload a CSV file first.")
+        elif not embed_cols or embed_seq_col not in embed_cols:
+            st.error("Select a valid sequence column.")
+        else:
+            from plm_regressor.embeddings.extract import extract_from_csv
+
+            with st.spinner(f"Running {embed_plm} — first run downloads the model weights (~minutes)…"):
+                try:
+                    out_path, n_new, n_cached = extract_from_csv(
+                        embed_plm, str(embed_csv_path), embed_seq_col,
+                        str(embed_out_npz), batch_size=embed_batch, force_cpu=embed_cpu,
+                    )
+                    st.success(f"Done! {n_new} embeddings computed, {n_cached} reused from cache.")
+                    ss["embed_ready_npz"] = str(out_path)
+                except Exception as exc:
+                    st.error(f"Extraction failed: {exc}")
+
+    if ss.get("embed_ready_npz") and Path(ss["embed_ready_npz"]).exists():
+        npz_bytes = Path(ss["embed_ready_npz"]).read_bytes()
+        st.download_button(
+            f"Download {embed_plm}.npz",
+            npz_bytes,
+            file_name=f"{embed_plm}.npz",
+            mime="application/octet-stream",
+        )
+        st.info(
+            f"To use in training: put `{embed_plm}.npz` in your embedding directory "
+            f"(default: `embeddings/`) and select `{embed_plm}` as a feature source in Tab 2."
+        )
 
 # --------------------------------------------------------------------------- #
 # 1. Data
 # --------------------------------------------------------------------------- #
-with tabs[0]:
+with tabs[1]:
     st.header("Training data")
     up = st.file_uploader("Upload a training CSV", type=["csv"])
     if up is not None:
@@ -78,7 +180,7 @@ with tabs[0]:
 # --------------------------------------------------------------------------- #
 # 2. Features
 # --------------------------------------------------------------------------- #
-with tabs[1]:
+with tabs[2]:
     st.header("Feature sources")
     plm_choices = available_plms()
     encodings = sorted(COMPUTED_FEATURE_SOURCES)
@@ -116,7 +218,7 @@ with tabs[1]:
 # --------------------------------------------------------------------------- #
 # 3. Models
 # --------------------------------------------------------------------------- #
-with tabs[2]:
+with tabs[3]:
     st.header("Regressors")
     models = available_models()
     ss["models"] = st.multiselect(
@@ -128,7 +230,7 @@ with tabs[2]:
 # --------------------------------------------------------------------------- #
 # 4. Search
 # --------------------------------------------------------------------------- #
-with tabs[3]:
+with tabs[4]:
     st.header("Search settings")
     c1, c2, c3 = st.columns(3)
     ss["metric"] = c1.selectbox("Primary metric",
@@ -146,7 +248,7 @@ with tabs[3]:
 # --------------------------------------------------------------------------- #
 # 5. Run
 # --------------------------------------------------------------------------- #
-with tabs[4]:
+with tabs[5]:
     st.header("Run training")
     ss["out_dir"] = st.text_input("Output run directory", ss.get("out_dir", "runs/gui_run"))
     if st.button("🚀 Run training", type="primary"):
@@ -195,7 +297,7 @@ with tabs[4]:
 # --------------------------------------------------------------------------- #
 # 6. Results
 # --------------------------------------------------------------------------- #
-with tabs[5]:
+with tabs[6]:
     st.header("Results")
     run_dir = Path(st.text_input("Run directory", ss.get("out_dir", "runs/gui_run")))
     if (run_dir / "run_report.json").exists():
@@ -218,7 +320,7 @@ with tabs[5]:
 # --------------------------------------------------------------------------- #
 # 7. Predict
 # --------------------------------------------------------------------------- #
-with tabs[6]:
+with tabs[7]:
     st.header("Rank candidate sequences")
     pred_run_dir = st.text_input("Saved run directory", ss.get("out_dir", "runs/gui_run"), key="pred_run")
     cand = st.file_uploader("Upload candidate CSV", type=["csv"], key="cand")
